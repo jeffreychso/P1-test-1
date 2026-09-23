@@ -3,156 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小一數學測驗隨機生成器</title>
+    <title>小一數學線上測驗</title>
     <style>
-        body { font-family: 'Arial', sans-serif; line-height: 1.8; padding: 20px; max-width: 800px; margin: 0 auto; color: #333; }
+        body { font-family: Arial, sans-serif; line-height: 1.8; padding: 20px; max-width: 900px; margin: 0 auto; color: #333; }
         h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #7f8c8d; font-size: 0.9em; margin-bottom: 30px; }
-        .control-panel { text-align: center; margin-bottom: 30px; }
-        button { background-color: #3498db; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; }
-        button:hover { background-color: #2980b9; }
-        button.print-btn { background-color: #2ecc71; }
-        button.print-btn:hover { background-color: #27ae60; }
+        .subtitle { text-align: center; color: #7f8c8d; font-size: .95em; margin-bottom: 25px; }
+        .control-panel { text-align: center; margin-bottom: 25px; }
+        button { background: #3498db; color: white; border: 0; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; }
+        button:hover { background: #2980b9; }
+        button.submit-btn { background: #e67e22; }
+        button.submit-btn:hover { background: #d35400; }
+        button.print-btn { background: #2ecc71; }
+        button.print-btn:hover { background: #27ae60; }
         .section { margin-bottom: 25px; background: #fdfdfd; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
         .section-title { font-weight: bold; font-size: 1.2em; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-bottom: 15px; }
         .quiz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
         .quiz-item { margin-bottom: 12px; font-size: 1.1em; }
         .full-width { grid-column: span 2; }
-        
-        /* Print layout optimizations */
-        @media print {
-            .control-panel { display: none; }
-            body { padding: 0; max-width: 100%; }
-            .section { border: none; padding: 0; margin-bottom: 30px; page-break-inside: avoid; }
-            button { display: none; }
-        }
+        .answer-input { width: 48px; min-height: 28px; box-sizing: border-box; border: 0; border-bottom: 2px solid #333; text-align: center; font-size: 18px; background: transparent; }
+        .sequence-input { margin: 0 3px; }
+        .answer-input:focus { outline: none; border-bottom-color: #3498db; background: #eef7ff; }
+        .correct { border-bottom-color: #27ae60; background: #eafaf1; }
+        .incorrect { border-bottom-color: #e74c3c; background: #fdedec; }
+        .feedback { margin-left: 8px; font-size: .9em; font-weight: bold; }
+        .correct + .feedback { color: #27ae60; }
+        .incorrect + .feedback { color: #e74c3c; }
+        #result { display: none; text-align: center; padding: 14px; margin: 15px 0 25px; border-radius: 8px; background: #fff3cd; color: #856404; font-size: 1.2em; font-weight: bold; }
+        @media (max-width: 600px) { .quiz-grid { grid-template-columns: 1fr; } .full-width { grid-column: span 1; } body { padding: 10px; } }
+        @media print { .control-panel, #result, .feedback { display: none !important; } body { padding: 0; max-width: 100%; } .section { border: none; padding: 0; margin-bottom: 30px; page-break-inside: avoid; } button { display: none; } .answer-input { color: #000; } }
     </style>
 </head>
 <body>
-
-    <h1>小一數學測驗模擬練習卷</h1>
-    <div class="subtitle">提示：點擊「生成全新題目」按鈕可隨機更換整張試卷的數字</div>
+    <h1>小一數學線上測驗</h1>
+    <div class="subtitle">請在每個空格輸入答案，完成後按「提交並檢查答案」。</div>
 
     <div class="control-panel">
         <button onclick="generateQuiz()">🔄 生成全新題目</button>
-        <button class="print-btn" onclick="window.print()">🖨️ 列印本頁 / 儲存成PDF</button>
+        <button class="submit-btn" onclick="checkAnswers()">✅ 提交並檢查答案</button>
+        <button class="print-btn" onclick="window.print()">🖨️ 列印本頁 / 儲存成 PDF</button>
     </div>
 
-    <div id="quiz-container">
-        <!-- Questions will dynamically load here -->
-    </div>
+    <div id="result" role="status"></div>
+    <div id="quiz-container"></div>
 
     <script>
+        let answerKey = {};
+
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
+        function inputHtml(question, index = 0, extraClass = '') {
+            return `<input class="answer-input ${extraClass}" data-question="${question}" data-index="${index}" type="number" inputmode="numeric" aria-label="第 ${question} 題答案">`;
+        }
+
+        function saveAnswer(question, answers) {
+            answerKey[question] = Array.isArray(answers) ? answers.map(Number) : [Number(answers)];
+        }
+
         function generateQuiz() {
             const container = document.getElementById('quiz-container');
-            container.innerHTML = ''; // Clear previous items
+            const result = document.getElementById('result');
+            answerKey = {};
+            result.style.display = 'none';
+            result.textContent = '';
+            container.innerHTML = '';
 
-            // --- SECTION 1: 算一算 ---
             let sec1Html = `<div class="section"><div class="section-title">一、算一算（每題空格填入正確數字）</div><div class="quiz-grid">`;
-            
-            // 5 Fill in the blank addition/subtraction
-            for(let i=1; i<=5; i++) {
-                let sum = getRandomInt(11, 18);
-                let a = getRandomInt(4, sum - 4);
-                let b = sum - a;
-                if(Math.random() > 0.5) {
-                    sec1Html += `<div class="quiz-item">${i}. ${a} + <span style="display:inline-block; width:60px; border-bottom:1px solid #000; text-align:center;">&nbsp;</span> = ${sum}</div>`;
+            for (let i = 1; i <= 5; i++) {
+                const sum = getRandomInt(11, 18);
+                const a = getRandomInt(4, sum - 4);
+                const b = sum - a;
+                if (Math.random() > .5) {
+                    sec1Html += `<div class="quiz-item">${i}. ${a} + ${inputHtml(i)} = ${sum}</div>`;
+                    saveAnswer(i, b);
                 } else {
-                    sec1Html += `<div class="quiz-item">${i}. <span style="display:inline-block; width:60px; border-bottom:1px solid #000; text-align:center;">&nbsp;</span> + ${b} = ${sum}</div>`;
+                    sec1Html += `<div class="quiz-item">${i}. ${inputHtml(i)} + ${b} = ${sum}</div>`;
+                    saveAnswer(i, a);
                 }
             }
-            // 5 Subtraction fill in blank
-            for(let i=6; i<=10; i++) {
-                let total = getRandomInt(11, 18);
-                let sub = getRandomInt(4, total - 3);
-                let rem = total - sub;
-                if(Math.random() > 0.5) {
-                    sec1Html += `<div class="quiz-item">${i}. ${total} - <span style="display:inline-block; width:60px; border-bottom:1px solid #000; text-align:center;">&nbsp;</span> = ${rem}</div>`;
+            for (let i = 6; i <= 10; i++) {
+                const total = getRandomInt(11, 18);
+                const sub = getRandomInt(4, total - 3);
+                const rem = total - sub;
+                if (Math.random() > .5) {
+                    sec1Html += `<div class="quiz-item">${i}. ${total} - ${inputHtml(i)} = ${rem}</div>`;
+                    saveAnswer(i, sub);
                 } else {
-                    sec1Html += `<div class="quiz-item">${i}. <span style="display:inline-block; width:60px; border-bottom:1px solid #000; text-align:center;">&nbsp;</span> - ${sub} = ${rem}</div>`;
+                    sec1Html += `<div class="quiz-item">${i}. ${inputHtml(i)} - ${sub} = ${rem}</div>`;
+                    saveAnswer(i, total);
                 }
             }
-            // 10 Word math problems
-            for(let i=11; i<=20; i++) {
-                if(Math.random() > 0.5) {
-                    let total = getRandomInt(11, 18);
-                    let take = getRandomInt(4, total - 3);
-                    sec1Html += `<div class="quiz-item">${i}. ${total} 取去 ${take} 是 ____</div>`;
+            for (let i = 11; i <= 20; i++) {
+                if (Math.random() > .5) {
+                    const total = getRandomInt(11, 18);
+                    const take = getRandomInt(4, total - 3);
+                    sec1Html += `<div class="quiz-item">${i}. ${total} 取去 ${take} 是 ${inputHtml(i)}</div>`;
+                    saveAnswer(i, total - take);
                 } else {
-                    let a = getRandomInt(4, 9);
-                    let b = getRandomInt(4, 9);
-                    sec1Html += `<div class="quiz-item">${i}. ${a} 和 ${b} 合起來是 ____</div>`;
+                    const a = getRandomInt(4, 9);
+                    const b = getRandomInt(4, 9);
+                    sec1Html += `<div class="quiz-item">${i}. ${a} 和 ${b} 合起來是 ${inputHtml(i)}</div>`;
+                    saveAnswer(i, a + b);
                 }
             }
-            sec1Html += `</div></div>`;
+            sec1Html += '</div></div>';
             container.innerHTML += sec1Html;
 
-            // --- SECTION 2: 依規律填一填 ---
             let sec2Html = `<div class="section"><div class="section-title">二、依規律，填一填</div><div class="quiz-grid">`;
-            for(let i=21; i<=30; i++) {
-                let type = getRandomInt(1, 3); // 1: sequence, 2: reverse, 3: skip counting
-                let seq = [];
-                if(type === 1) { // Normal up
-                    let start = getRandomInt(1, 14);
-                    for(let j=0; j<6; j++) seq.push(start + j);
-                } else if (type === 2) { // Reverse down
-                    let start = getRandomInt(8, 20);
-                    for(let j=0; j<6; j++) seq.push(start - j);
-                } else { // Even skip counting
-                    let start = getRandomInt(1, 5) * 2;
-                    for(let j=0; j<6; j++) seq.push(start + (j*2));
+            for (let i = 21; i <= 30; i++) {
+                const type = getRandomInt(1, 3);
+                const seq = [];
+                if (type === 1) {
+                    const start = getRandomInt(1, 14);
+                    for (let j = 0; j < 6; j++) seq.push(start + j);
+                } else if (type === 2) {
+                    const start = getRandomInt(8, 20);
+                    for (let j = 0; j < 6; j++) seq.push(start - j);
+                } else {
+                    const start = getRandomInt(1, 5) * 2;
+                    for (let j = 0; j < 6; j++) seq.push(start + j * 2);
                 }
-                
-                // Randomly hide two indices
-                let idx1 = getRandomInt(1, 2);
-                let idx2 = getRandomInt(4, 5);
-                let displayItems = seq.map((num, idx) => (idx === idx1 || idx === idx2) ? "____" : num);
-                
+                const idx1 = getRandomInt(1, 2);
+                const idx2 = getRandomInt(4, 5);
+                const displayItems = seq.map((num, idx) => {
+                    if (idx === idx1 || idx === idx2) return inputHtml(i, idx, 'sequence-input');
+                    return num;
+                });
                 sec2Html += `<div class="quiz-item">${i}. ${displayItems.join(' , ')}</div>`;
+                saveAnswer(i, [seq[idx1], seq[idx2]]);
             }
-            sec2Html += `</div></div>`;
+            sec2Html += '</div></div>';
             container.innerHTML += sec2Html;
 
-            // --- SECTION 3: 數的篩選與排列 ---
             let sec3Html = `<div class="section"><div class="section-title">三、數的篩選與排列</div><div class="quiz-grid">`;
-            for(let i=31; i<=40; i++) {
-                let isEvenTarget = Math.random() > 0.5;
-                let isSmallToBig = Math.random() > 0.5;
-                
+            for (let i = 31; i <= 40; i++) {
+                const isEvenTarget = Math.random() > .5;
+                const isSmallToBig = Math.random() > .5;
                 let pool = [];
-                // Generate random numbers mixture
-                while(pool.length < 5) {
-                    let n = getRandomInt(1, 20);
-                    if(!pool.includes(n)) pool.push(n);
-                }
-                
-                let targetLabel = isEvenTarget ? "雙數" : "單數";
-                let directionLabel = isSmallToBig ? "由小至大" : "由大至小";
-                let sign = isSmallToBig ? "<" : ">";
-                
-                sec3Html += `<div class="quiz-item full-width">${i}. 把以下的【${targetLabel}】${directionLabel}排列： &nbsp;&nbsp;&nbsp;&nbsp;<b>${pool.join(' , ')}</b><br>答案： ____ ${sign} ____ ${sign} ____</div>`;
+                let selected = [];
+                do {
+                    pool = [];
+                    while (pool.length < 5) {
+                        const n = getRandomInt(1, 20);
+                        if (!pool.includes(n)) pool.push(n);
+                    }
+                    selected = pool.filter(n => isEvenTarget ? n % 2 === 0 : n % 2 !== 0);
+                } while (selected.length < 2);
+                const answers = selected.sort((a, b) => isSmallToBig ? a - b : b - a);
+                const targetLabel = isEvenTarget ? '雙數' : '單數';
+                const directionLabel = isSmallToBig ? '由小至大' : '由大至小';
+                const answerInputs = answers.map((_, index) => inputHtml(i, index, 'sequence-input')).join(isSmallToBig ? ' ＜ ' : ' ＞ ');
+                sec3Html += `<div class="quiz-item full-width">${i}. 把以下的【${targetLabel}】${directionLabel}排列： <b>${pool.join(' , ')}</b><br>答案： ${answerInputs}</div>`;
+                saveAnswer(i, answers);
             }
-            sec3Html += `</div></div>`;
+            sec3Html += '</div></div>';
             container.innerHTML += sec3Html;
 
-            // --- SECTION 4: 圖形代算 ---
             let sec4Html = `<div class="section"><div class="section-title">四、圖形代算</div><div class="quiz-grid">`;
-            const shapes = ["★", "▲", "■", "●", "◆", "♥", "♦", "♣", "♠", "▼"];
-            for(let i=41; i<=50; i++) {
-                let shape = shapes[i-41];
-                let ans = getRandomInt(3, 10);
-                let sum = ans + ans;
-                sec4Html += `<div class="quiz-item">${i}. ${shape} + ${shape} = ${sum}，那麼 ${shape} 是 ____。</div>`;
+            const shapes = ['★', '▲', '■', '●', '◆', '♥', '♦', '♣', '♠', '▼'];
+            for (let i = 41; i <= 50; i++) {
+                const shape = shapes[i - 41];
+                const ans = getRandomInt(3, 10);
+                sec4Html += `<div class="quiz-item">${i}. ${shape} + ${shape} = ${ans * 2}，那麼 ${shape} 是 ${inputHtml(i)}</div>`;
+                saveAnswer(i, ans);
             }
-            sec4Html += `</div></div>`;
+            sec4Html += '</div></div>';
             container.innerHTML += sec4Html;
         }
 
-        // Initialize setup on load
+        function checkAnswers() {
+            let score = 0;
+            let total = 0;
+            Object.keys(answerKey).forEach(question => {
+                const expected = answerKey[question];
+                const inputs = [...document.querySelectorAll(`[data-question="${question}"]`)]
+                    .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+                inputs.forEach((input, index) => {
+                    const value = input.value.trim();
+                    const isCorrect = value !== '' && Number(value) === expected[index];
+                    input.classList.toggle('correct', isCorrect);
+                    input.classList.toggle('incorrect', !isCorrect);
+                    let feedback = input.nextElementSibling;
+                    if (!feedback || !feedback.classList.contains('feedback')) {
+                        feedback = document.createElement('span');
+                        feedback.className = 'feedback';
+                        input.after(feedback);
+                    }
+                    feedback.textContent = value === '' ? '請作答' : (isCorrect ? '✓' : `✗（答案：${expected[index]}）`);
+                    if (isCorrect) score++;
+                    total++;
+                });
+            });
+            const result = document.getElementById('result');
+            result.textContent = `完成！你答對了 ${score} / ${total} 題（${Math.round(score / total * 100)} 分）。`;
+            result.style.display = 'block';
+            result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
         window.onload = generateQuiz;
     </script>
 </body>
